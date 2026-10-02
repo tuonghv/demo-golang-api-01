@@ -44,6 +44,9 @@ func newFake(t *testing.T) *fake {
 
 func do(h http.Handler, method, path, body, authz string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if method == "POST" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if authz != "" {
 		req.Header.Set("Authorization", authz)
 	}
@@ -67,6 +70,9 @@ func TestLogin(t *testing.T) {
 		{"empty password", `{"username":"admin","password":""}`, 400},
 		{"unknown field", `{"username":"admin","password":"pw-ok","x":1}`, 400},
 		{"trailing data", `{"username":"admin","password":"pw-ok"}{}`, 400},
+		{"NUL in username", `{"username":"adm\u0000in","password":"pw-ok"}`, 400},
+		{"NUL in password", `{"username":"admin","password":"pw\u0000"}`, 400},
+		{"control char newline", `{"username":"admin\n","password":"pw-ok"}`, 400},
 		{"wrong types", `{"username":1,"password":2}`, 400},
 		{"oversized body", `{"username":"admin","password":"` + strings.Repeat("a", 2000) + `"}`, 400},
 		{"body at limit boundary ok", `{"username":"admin","password":"pw-ok"}` + strings.Repeat(" ", 900), 200},
@@ -145,5 +151,28 @@ func TestMethodsAndHealth(t *testing.T) {
 	f.pingErr = errors.New("down")
 	if rec := do(h, "GET", "/healthz", "", ""); rec.Code != 503 {
 		t.Fatalf("health down: %d", rec.Code)
+	}
+}
+
+func TestLoginContentType(t *testing.T) {
+	h := NewRouter(newFake(t), tokens)
+	for _, tt := range []struct {
+		ct   string
+		want int
+	}{
+		{"application/json", 200}, {"application/json; charset=utf-8", 200},
+		{"", 415}, {"text/plain", 415}, {"application/x-www-form-urlencoded", 415},
+	} {
+		t.Run(tt.ct, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/api/v1/login", strings.NewReader(`{"username":"admin","password":"pw-ok"}`))
+			if tt.ct != "" {
+				req.Header.Set("Content-Type", tt.ct)
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != tt.want {
+				t.Fatalf("code = %d, want %d", rec.Code, tt.want)
+			}
+		})
 	}
 }

@@ -41,11 +41,7 @@ func run() error {
 	if err := st.Migrate(ctx, migrations.FS); err != nil {
 		return err
 	}
-	hash, err := auth.HashPassword(cfg.AdminPassword)
-	if err != nil {
-		return err
-	}
-	if err := st.SeedAdmin(ctx, cfg.AdminUsername, hash); err != nil {
+	if err := st.SeedAdmin(ctx, cfg.AdminUsername, cfg.AdminPassword); err != nil {
 		return err
 	}
 

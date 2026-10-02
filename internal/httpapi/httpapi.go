@@ -7,7 +7,10 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
+	"strings"
+	"unicode"
 
 	"github.com/example/demo-golang-api-01/internal/auth"
 	"github.com/example/demo-golang-api-01/internal/products"
@@ -54,11 +57,16 @@ type loginRequest struct {
 
 func loginHandler(b Backend, tokens auth.Tokens) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+			WriteJSON(w, http.StatusUnsupportedMediaType, map[string]string{"error": "content type must be application/json"})
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
 		var req loginRequest
-		if err := dec.Decode(&req); err != nil || req.Username == "" || req.Password == "" {
+		if err := dec.Decode(&req); err != nil || req.Username == "" || req.Password == "" ||
+			hasControlChars(req.Username) || hasControlChars(req.Password) {
 			WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 			return
 		}
@@ -90,4 +98,10 @@ func loginHandler(b Backend, tokens auth.Tokens) http.Handler {
 		}
 		WriteJSON(w, http.StatusOK, map[string]any{"token": tok, "expires_in": int(tokens.TTL.Seconds())})
 	})
+}
+
+// hasControlChars reports whether s contains NUL or any other control character.
+// NUL would otherwise reach PostgreSQL and fail with SQLSTATE 22021 (a 500).
+func hasControlChars(s string) bool {
+	return strings.IndexFunc(s, unicode.IsControl) >= 0
 }

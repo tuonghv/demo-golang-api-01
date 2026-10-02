@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/example/demo-golang-api-01/internal/auth"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -138,9 +139,14 @@ func (s *Store) Migrate(ctx context.Context, fsys fs.FS) error {
 	return nil
 }
 
-// SeedAdmin inserts the admin user with the given bcrypt hash if absent.
-func (s *Store) SeedAdmin(ctx context.Context, username, passwordHash string) error {
-	_, err := s.Pool.Exec(ctx,
+// SeedAdmin bcrypt-hashes password and inserts the admin user if absent.
+// The plaintext is never stored.
+func (s *Store) SeedAdmin(ctx context.Context, username, password string) error {
+	passwordHash, err := auth.HashPassword(password)
+	if err != nil {
+		return fmt.Errorf("hash admin password: %w", err)
+	}
+	_, err = s.Pool.Exec(ctx,
 		`INSERT INTO users (username, password_hash) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING`,
 		username, passwordHash)
 	return err

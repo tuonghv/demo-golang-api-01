@@ -8,6 +8,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/example/demo-golang-api-01/internal/auth"
 	"github.com/example/demo-golang-api-01/migrations"
 )
 
@@ -79,16 +80,19 @@ func TestSeedAdminAndLookup(t *testing.T) {
 	if err := st.Migrate(ctx, migrations.FS); err != nil {
 		t.Fatal(err)
 	}
-	const hash = "$2a$10$abcdefghijklmnopqrstuuabcdefghijklmnopqrstuvwxyz012345"
-	if err := st.SeedAdmin(ctx, "admin", hash); err != nil {
+	const pw = "seed-pw-123"
+	if err := st.SeedAdmin(ctx, "admin", pw); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.SeedAdmin(ctx, "admin", "$2a$10$other"); err != nil { // DO NOTHING keeps the first
+	if err := st.SeedAdmin(ctx, "admin", "other-pw"); err != nil { // DO NOTHING keeps the first
 		t.Fatal(err)
 	}
 	u, err := st.UserByUsername(ctx, "admin")
-	if err != nil || u.PasswordHash != hash || !strings.HasPrefix(u.PasswordHash, "$2") {
-		t.Fatalf("user = %+v err=%v", u, err)
+	if err != nil || u.PasswordHash == pw || !strings.HasPrefix(u.PasswordHash, "$2") {
+		t.Fatalf("stored hash not bcrypt: %+v err=%v", u, err)
+	}
+	if !auth.CheckPassword(u.PasswordHash, pw) || auth.CheckPassword(u.PasswordHash, "other-pw") {
+		t.Fatal("stored hash does not verify the seeded password only")
 	}
 	if _, err := st.UserByUsername(ctx, "ghost"); err != ErrNotFound {
 		t.Fatalf("err = %v", err)

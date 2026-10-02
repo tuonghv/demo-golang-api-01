@@ -19,7 +19,7 @@ Note: the admin user is created only if it does not exist; changing `SEED_ADMIN_
 ```bash
 curl -s localhost:8080/healthz
 
-TOKEN=$(curl -s -X POST localhost:8080/api/v1/login \
+TOKEN=$(curl -s -X POST localhost:8080/api/v1/login -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"<your SEED_ADMIN_PASSWORD>"}' | sed -E 's/.*"token":"([^"]+)".*/\1/')
 
 curl -s -H "Authorization: Bearer $TOKEN" 'localhost:8080/api/v1/products?limit=5&offset=0'
@@ -53,4 +53,4 @@ docker compose down           # keeps data in the pgdata volume
 ```
 
 ## Known gaps
-No rate limiting on login, no TLS, no refresh tokens or token revocation (local demo scope).
+Login requires `Content-Type: application/json` (415 otherwise). Unknown query parameters and malformed query strings (e.g. containing `;`) are ignored rather than rejected; a JWT_SECRET of 32+ whitespace bytes is accepted. No rate limiting on login, no TLS, no refresh tokens or token revocation (local demo scope).
