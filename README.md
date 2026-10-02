@@ -54,3 +54,14 @@ docker compose down           # keeps data in the pgdata volume
 
 ## Known gaps
 Login requires `Content-Type: application/json` (415 otherwise). Unknown query parameters and malformed query strings (e.g. containing `;`) are ignored rather than rejected; a JWT_SECRET of 32+ whitespace bytes is accepted. No rate limiting on login, no TLS, no refresh tokens or token revocation (local demo scope).
+
+## Development
+
+This section is the project context for engineers and AI agents; keep it factual and update it when it changes.
+
+- **Layout:** `cmd/api` (wiring only), `internal/{config,auth,products,httpapi,store}`, `migrations/*.sql`, `Dockerfile`, `docker-compose.yml`, `.env.example`, `Makefile`.
+- **Dependencies:** stdlib first; only `github.com/jackc/pgx/v5`, `golang.org/x/crypto/bcrypt`, `github.com/golang-jwt/jwt/v5` (pinned to versions that fit `go 1.24`; build images with `GOTOOLCHAIN=local`).
+- **Checks** (from the repo root): `test -z "$(gofmt -l .)" && go vet ./... && go build ./... && go test -race -count=1 ./...`. DB-backed tests need `TEST_DATABASE_URL` and are skipped without it.
+- **Stack:** `docker compose up -d --build --wait`; stop with `docker compose down` (`-v` deletes the database volume, ask first). Config check without a daemon: `docker compose --env-file .env.example config -q`.
+- **Never break:** passwords only as bcrypt hashes; no secrets in git (`.env` is ignored, `.env.example` holds placeholders); SQL only with bound parameters; `JWT_SECRET` and DB password have no default.
+- **Unproven:** the Compose runtime (Dockerfile build, healthchecks, `depends_on`) was only config-validated in the first build, not run; see Known gaps above for the rest.
